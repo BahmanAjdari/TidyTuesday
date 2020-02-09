@@ -1,0 +1,200 @@
+---
+title: "Cran-Code"
+author: "Bahman Ajdari"
+date: "11/12/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Libraries 
+
+```{r}
+library(tidyverse)
+library(scales)
+library(RColorBrewer)
+library(igraph)
+library(tidytext)
+library(ggraph)
+library(widyr)
+theme_set(theme_light())
+```
+
+## Read in Data
+```{r}
+cran_code <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-11-12/loc_cran_packages.csv")
+```
+
+## EDA
+```{r EDA}
+cran_code %>% 
+  count(pkg_name, sort = TRUE)
+
+cran_code %>%
+  filter(pkg_name=="diff")
+
+cran_code %>%
+  count(language,sort = TRUE) %>%
+  top_n(12, n)%>%
+  mutate(language=fct_reorder(language, n))%>%
+  ggplot(aes(language, n))+
+  geom_col()+
+  scale_y_continuous(labels = comma_format())+
+  coord_flip()+
+  labs(
+    x="",
+    y="Number of packages",
+    title = "Top used programming languages in developing R packages"
+  )
+
+cran_code %>%
+  group_by(pkg_name)%>%
+  summarise(blank=sum(blank, na.rm = TRUE),
+            comment=sum(comment, na.rm = TRUE),
+            code=sum(code, na.rm = TRUE)) %>%
+  ungroup()%>%
+  arrange(desc(code))%>%
+    mutate(pkg_name=fct_reorder(pkg_name, code))%>%
+  top_n(16, code)%>%
+  ggplot(aes(pkg_name, code))+
+  geom_col()+
+  scale_y_continuous(labels = comma_format())+
+  coord_flip()+
+  labs(
+    x="Package name",
+    y="Number of code lines",
+    title = "Top 16 packages with most code lines",
+  
+      subtitle = str_wrap("This is interesting that none of the tidyverse packages are not on the list")
+  )
+```
+
+Exploring tidyverse
+```{r tidyverse}
+tidyverse<- c("readr", "tidyr", "stringr", "dplyr", "tibble", "ggplot2", "purrr", "forcats", "tidyverse")
+
+total_code<- cran_code %>%
+  filter(pkg_name %in% tidyverse)%>%
+  group_by(pkg_name)%>%
+  summarise(total_blank=sum(blank, na.rm = TRUE),
+            total_comment=sum(comment, na.rm = TRUE),
+            total_code=sum(code, na.rm = TRUE)) %>%
+  arrange(desc(total_code))
+
+cran_code%>%
+  inner_join(total_code, by="pkg_name") %>%
+  mutate(pkg_name=fct_reorder(pkg_name, total_code))%>%
+ggplot()+
+  geom_col(aes(pkg_name, code, fill=language), color="#efefef")+
+  scale_fill_brewer(palette = "Paired")+
+  #coord_flip()+
+  theme(
+    panel.background = element_rect(fill = "black"),
+    plot.background = element_rect(fill = "black"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_blank(),
+    axis.text.x = element_text(color="gold"),
+    axis.text.y = element_text(color="gold"),
+    legend.position = "top",
+    legend.background = element_rect(fill = "black"),
+    legend.text = element_text(color = "lightyellow")
+  )+
+  guides(
+    fill=guide_legend(nrow=1)
+  )
+  
+```
+
+##Drill down to factor analysis
+```{r sem analysis pkgs}
+favorit <- c("psych", "sem", "semTools", "lavaan")
+favorit_code<- cran_code %>%
+  filter(pkg_name %in% favorit)%>%
+  group_by(pkg_name)%>%
+  summarise(total_blank=sum(blank, na.rm = TRUE),
+            total_comment=sum(comment, na.rm = TRUE),
+            total_code=sum(code, na.rm = TRUE)) %>%
+  arrange(desc(total_code))
+# the plot
+cran_code%>%
+  inner_join(favorit_code, by="pkg_name") %>%
+  mutate(pkg_name=fct_reorder(pkg_name, total_code))%>%
+ggplot()+
+  geom_col(aes(pkg_name, code, fill=language), color="#efefef")+
+  scale_fill_brewer(palette = "Dark2")+
+  coord_flip()+
+  theme(
+    panel.background = element_rect(fill = "black"),
+    plot.background = element_rect(fill = "black"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_blank(),
+    axis.text.x = element_text(color="lightyellow"),
+    axis.text.y = element_text(color="lightyellow"),
+    axis.title = element_text(color ="lightyellow"),
+    legend.position = "bottom",
+    legend.background = element_rect(fill = "black"),
+    legend.text = element_text(color = "lightyellow")
+  )+
+  guides(
+    fill=guide_legend(nrow=1)
+  )+
+  labs(
+    x="",
+    y="Number of code lines",
+  )
+```
+
+## Faceting the correlation between programming languages
+```{r correlation analysis}
+
+pairs_count<- cran_code %>%
+  pairwise_count(language, pkg_name, sort=TRUE)
+
+pairs_cor<- cran_code%>%
+  group_by(language)%>%
+  pairwise_cor(language, pkg_name, sort=TRUE)
+  
+pairs_cor %>%
+  filter(item1=="C++")
+
+pairs_cor %>%
+  filter(item1 %in% c("R", "C", "C++", "Markdown", "HTML")) %>%
+  group_by(item1) %>%
+  top_n(4) %>%
+  ungroup() %>%
+  mutate(item2 = fct_reorder(item2, correlation)) %>%
+  ggplot(aes(item2, correlation)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~item1, scales = "free") +
+  coord_flip()+
+  labs(
+    
+  )
+```
+
+```{r correlation graph}
+pairs_cor<- cran_code%>%
+  group_by(language)%>%
+  pairwise_cor(language, pkg_name, sort=TRUE)
+
+set.seed(2019)
+
+pairs_cor %>%
+  filter(correlation > .15) %>%
+  graph_from_data_frame() %>%
+  ggraph(layout = "fr") +
+  geom_edge_link(aes(edge_alpha = correlation), show.legend = FALSE, color="red") +
+  geom_node_point(color = "lightblue", size = 5) +
+  geom_node_text(aes(label = name), repel = TRUE, color="lightyellow") +
+  theme_void()+
+  theme(
+    panel.background = element_rect(fill = "black"),
+    plot.background = element_rect(fill = "black"),
+    plot.title = element_text(color = "#dce1dc")
+  )
+```
+

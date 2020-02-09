@@ -1,0 +1,139 @@
+---
+title: "National Parks"
+author: "Bahman Ajdari"
+date: "9/16/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+##Loading libraries
+```{r}
+library(tidyverse)
+library(scales)
+library(lubridate)
+theme_set(theme_light())
+```
+
+##Loading Data into R
+```{r}
+park_visits <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-09-17/national_parks.csv")
+state_pop <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-09-17/state_pop.csv")
+gas_price <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-09-17/gas_price.csv")
+```
+# Most visited states
+```{r}
+park_visits %>%
+  group_by(state) %>%
+  summarise(number_of_visitors= sum(visitors, na.rm = TRUE)%/%1e6)%>%
+  ungroup()%>%
+  mutate(state=fct_reorder(state, number_of_visitors))%>%
+  arrange(desc(number_of_visitors))%>%
+  head(8)%>%
+  ggplot(aes(state, number_of_visitors))+
+    geom_col()+
+  coord_flip()+
+  labs(
+    title = "Most visited states in Million",
+    subtitle = "From 1904 to 2016",
+    x="Visited states",
+    y="Number of Visitors"
+  )
+
+ggsave(here("National Parks","img","visitors1.png"), last_plot(), width = 16, height = 8)
+```
+
+# Trend through the years
+
+National parks are enjoying from growing number of visitors! 
+```{r}
+park_visits %>%
+  filter(year!="Total")%>%
+  filter(unit_type=="National Park")%>%
+  
+  mutate(year = as.numeric(year)) %>% 
+  group_by(year) %>%
+  summarise(total_visitors= sum(visitors)) %>%
+  ggplot(aes(year, total_visitors))+
+  geom_line(color="darkblue")+
+  geom_area(fill="lightblue", size=0.6, alpha=0.5)+
+  scale_x_continuous(breaks = seq(1904, 2016, by=10))+
+  scale_y_continuous(labels = comma_format())+
+  labs(
+    title = "Number of visitors through the years",
+    subtitle = "1904-2016",
+    x="",
+    y="Number of visitors"
+      )
+ggsave(here("National Parks","img","through_years.png"), last_plot(), width = 16, height = 8)
+
+```
+
+#Which parks had atleast 1e7 total visitors through years 
+```{r}
+park_visits%>%
+  filter(year!="Total")%>%
+  mutate(year = as.numeric(year)) %>% 
+  filter(year> 1985)%>%
+  group_by(unit_name, year, state)%>%
+  summarise(total_visitors=sum(visitors))%>% 
+  filter(total_visitors>2.5e6)%>%
+  ggplot()+
+  geom_line(aes(year, y=total_visitors, color=unit_name),show.legend = FALSE)+
+  scale_y_continuous(labels = comma_format())+
+  scale_x_continuous(breaks = seq(1985, 2016, 5))+
+  gghighlight::gghighlight(max(total_visitors)>1e7)
+ggsave(here("National Parks","img","millions_visits.png"), last_plot(), width = 16, height = 8)
+
+```
+#Second attempt
+How are rocky mountain and smoky mountains?
+```{r}
+sm<-park_visits %>%
+    filter(year!="Total")%>%
+    mutate(year = as.numeric(year))%>%
+    filter(year> 1985)%>%
+  filter(str_detect(unit_name, "Great Smoky Mountains|Rocky Mountain National Park"))
+
+park_visits%>%
+  filter(year!="Total")%>%
+  mutate(year = as.numeric(year)) %>% 
+  filter(year> 1985)%>%
+  group_by(unit_name, year, state)%>%
+  summarise(total_visitors=sum(visitors))%>% 
+  filter(total_visitors>2.5e6)%>%
+  ggplot()+
+  geom_line(aes(year, y=total_visitors, group=unit_name),show.legend = FALSE, alpha=0.1)+
+  geom_line(data=sm, aes(year, visitors, color=unit_name))+
+  scale_y_continuous(labels = comma_format())+
+  scale_x_continuous(breaks = seq(1985, 2016, 5))+
+  labs(
+    x="",
+    y="Number of Visitors"
+  )
+ggsave(here("National Parks","img","smk.png"), last_plot(), width = 16, height = 8)
+
+```
+
+```{r}
+national_parks <-park_visits %>% 
+  filter(year != "Total") %>%
+  filter(unit_type=="National Park")%>%
+  mutate(year=as.numeric(year))
+
+gas_price
+state_pop%>%
+left_join(national_parks, by=c( "year"))%>%
+  left_join(state_pop)
+park_visits%>%
+  complete.cases()%>%
+  head()
+
+
+```
+

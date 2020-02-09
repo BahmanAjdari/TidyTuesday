@@ -1,0 +1,102 @@
+---
+title: "Horror movies"
+author: "Bahman Ajdari"
+date: "10/22/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading libraries
+```{r}
+library(tidyverse)
+library(lubridate)
+library(stringr)
+library(tidytext)
+```
+
+## Data processing
+
+```{r}
+horror_movies <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-10-22/horror_movies.csv") %>%
+  mutate(movie_run_time=parse_number(movie_run_time))
+
+horror_processed_tidy<-horror_movies %>%
+  extract(col = title, into = "date", "\\((\\d\\d\\d\\d)\\)", remove=FALSE, convert = TRUE) %>%
+  separate_rows(cast, sep = "\\| ?") %>%
+  separate_rows(genres, sep = "\\| ?")
+
+horror_processed_tidy%>%
+  select(title, cast, date) %>%
+  gather("cat","value", -title)
+
+horror_processed <- horror_movies%>%
+  separate(release_date, into = c("r_day", "r_month", "r_year"), sep = "-", fill = "left",
+           convert = TRUE, remove = FALSE)%>%
+  mutate(r_year=ifelse(r_year<100, r_year+2000, r_year),
+         date= parse_number(str_extract(title, "\\([0-9]{4}\\)")),
+         director = str_extract(plot, "(?<=Directed by )(.*)(?=\\. With)"))%>%
+  mutate(cast = str_split(cast, "\\|")) %>%
+  unnest(cast)%>%
+  mutate(genres=str_split(genres,"\\| "))%>%
+  unnest(genres)%>%
+  mutate(id=row_number())
+  
+
+by_tag <- horror_movies %>%
+  mutate(id = row_number(),
+         release_year = parse_number(str_extract(title, "\\([0-9]{4}\\)")),
+         runtime_min = parse_number(movie_run_time)) %>%
+  select(-release_date, -movie_run_time)%>%
+  mutate(title = str_remove(title, " \\([0-9]{4}\\)"),
+         genre = str_split(genres, "\\| ")) %>%
+  unnest(genre) %>%
+  mutate(cast = str_split(cast, "\\|")) %>%
+  unnest(cast) %>%
+  mutate(language = str_split(language, "\\|")) %>%
+  unnest(language) %>%
+  select(id, title, release_country, genre, cast, language, review_rating) %>%
+  gather(release_country:language, key = "tag", value = "value") %>%
+  distinct(title, tag, value, .keep_all = TRUE) %>%
+  mutate(tag = ifelse(tag == "release_country", "release country", tag),
+         value = paste0(value, " (", str_to_title(tag), ")"))
+
+```
+
+##EDA
+```{r}
+horror_movies %>%
+  count(release_date, sort = TRUE)
+
+horror_processed%>%
+  count(is.na(budget))
+
+horror_processed_tidy %>%
+  count(movie_rating, sort = TRUE)
+
+horror_processed_tidy %>%
+  distinct(title, .keep_all = TRUE)%>%
+  ggplot(aes(date, movie_run_time))+
+  geom_point(alpha=0.1)
+```
+
+```{r}
+horror_processed %>%
+  ggplot(aes(movie_run_time, review_rating))+
+  geom_point(alpha = .1)+
+  geom_smooth(method = "lm")+
+  scale_x_log10()
+
+summary(lm(review_rating ~ movie_run_time, data = horror_processed))
+glimpse(horror_processed)
+```
+No relationship between runtime and review rating
+
+## Which actors apeared together most? Or most famous horror actors
+```{r}
+```
+

@@ -1,0 +1,173 @@
+---
+title: "Board Games"
+author: "Bahman Ajdari"
+date: "9/21/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Loading libraries
+```{r}
+library(tidyverse)
+library(tidyr)
+library(glmnet)
+theme_set(theme_light())
+library(broom)
+library(widyr)
+library(scales)
+library(tidytext)
+library(Matrix)
+```
+
+#Loading Data into R
+```{r}
+board_games_raw <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-03-12/board_games.csv")
+```
+
+#Exploratory Data Analysis
+```{r}
+board_games_raw%>%
+  count(publisher, sort = TRUE)
+board_games_raw%>%
+  count(year_published, sort = TRUE) %>%
+  arrange(desc(year_published))%>%
+  ggplot(aes(year_published, n))+
+  geom_line()
+
+board_games_raw %>%
+  ggplot(aes(average_rating))+
+  geom_histogram()
+
+board_games_raw%>%
+  filter(max_playtime > 5, max_playtime < 1000) %>%
+  ggplot(aes(max_playtime / 60)) +
+  geom_histogram(binwidth = .25) +
+  scale_x_log10(breaks = 2 ^ seq(-2, 4))
+
+board_games_raw %>%
+  count(year_published) %>%
+  ggplot(aes(year_published, n)) +
+  geom_line()
+```
+# two sets for prediction
+```{r}
+holdout_set <- board_games_raw %>%
+  filter(game_id %% 5 == 0)
+board_games <- board_games_raw %>%
+  filter(game_id %% 5 != 0)
+```
+#Dealing with categorical variables
+```{r}
+categorical_variables<- board_games%>%
+  select(game_id, name, family, category, artist, designer, mechanic)%>%
+  pivot_longer(cols = c(-game_id, -name), names_to ="type", values_to = "value") %>%
+  filter(!is.na(value))%>%
+  separate_rows(value, sep = ",")%>%
+  arrange(game_id)
+
+counts<- categorical_variables%>%
+  count(type, value,sort = TRUE)
+```
+
+```{r}
+categorical_variables %>%
+  count(type, value)%>%
+  top_n(12, n) %>%
+  mutate(value=fct_reorder(value, n),
+         type=fct_reorder(type, n, .desc = TRUE))%>%
+  ggplot(aes(value, n, fill = type)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ type, scales = "free_y") +
+  coord_flip() +
+  #scale_x_reordered() +
+  labs(title = "Most common categories")
+```
+#predict
+```{r}
+board_games %>%
+  group_by(decade = 10 * (year_published %/% 10)) %>%
+  summarize(average_rating = mean(average_rating)) %>%
+  ggplot(aes(decade, average_rating)) +
+  geom_line()
+```
+
+```{r}
+lm(average_rating~ 
+     log2(max_players+1)+
+     log2(max_playtime+1)+
+     year_published, board_games)%>%
+  tidy()
+```
+
+```{r}
+board_games %>%
+  inner_join(categorical_variables, by = c("game_id", "name")) %>%
+  select(type, value, average_rating) %>%
+  group_by(type, value) %>%
+  summarize(games = n(),
+            average_rating = mean(average_rating)) %>%
+  arrange(desc(games))
+```
+
+```{r}
+board_games %>%
+  inner_join(categorical_variables, by = c("game_id", "name")) %>%
+  filter(type == "category") %>%
+  mutate(value = fct_lump(value, 15),
+         value = fct_reorder(value, average_rating)) %>%
+  ggplot(aes(value, average_rating)) +
+  geom_boxplot() +
+  coord_flip()
+```
+
+```{r}
+not_categorical_features<- board_games%>%
+  transmute(game_id,
+            name,
+            year=year_published-1950,
+            log2_max_players=log2(max_players+1),
+            log2_max_playtime=log2(max_playtime+1))%>%
+  pivot_longer(cols = c(-game_id, -name), names_to = "feature", values_to = "value")
+
+features <- categorical_variables %>%
+  unite(feature, type, value, sep = ":")%>%
+  add_count(feature)%>%
+  filter(n>=20)%>%
+  mutate(value=1) %>%
+  bind_rows(not_categorical_features)
+feature_matrix <- features %>%
+  cast_sparse(game_id, feature, value)
+```
+
+#what is predicted
+```{r}
+ratings <- board_games$average_rating[match(rownames(feature_matrix), board_games$game_id)]
+```
+#Lasso Regression
+```{r}
+cv_lasso<- cv.glmnet(feature_matrix, ratings)
+plot(cv_lasso)
+
+cv_lasso$glmnet.fit %>%
+  tidy()%>%
+  filter(lambda==cv_lasso$lambda.1se)%>%
+  filter(term != "(Intercept)")%>%
+  top_n(25, abs(estimate))%>%
+  ggplot(aes(term, estimate))+
+  geom_col()+
+  coord_flip()+
+    labs(title = "Largest coefficients in our predictive model",
+       subtitle = "Based on a LASSO regression",
+       x = "",
+       y = "Coefficient")
+
+ggsave(here::here("Board Games","img", "coefficients.png"),last_plot(),width = 16, height = 8 )
+```
+
+#Thanks to Dave Robbinson for inspiting this!
+

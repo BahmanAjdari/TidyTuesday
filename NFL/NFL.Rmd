@@ -1,0 +1,113 @@
+---
+title: "Football"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data 
+```{r}
+attendance <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-02-04/attendance.csv')
+standings <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-02-04/standings.csv')
+games <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-02-04/games.csv')
+write.csv(games, "games.csv")
+setwd("~/Dropbox/Rstats/Tidytuesday/NFL")
+attendance <- readr::read_csv("attendance.csv")
+standings <- readr::read_csv("standings.csv")
+games <- readr::read_csv("games.csv")
+```
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(scales)
+library(cowplot)
+library(ggtext)
+theme_set(theme_light())
+```
+
+
+```{r}
+df <- attendance %>%
+  left_join(standings ,by = c("year", "team_name", "team"))
+```
+
+# Calendar HeatMap 
+```{r}
+sum_attendance <- attendance %>%
+  group_by(year, week) %>%
+  summarise(
+    sum_attendance= sum(weekly_attendance, na.rm = TRUE)
+  ) 
+# Tile   
+heat_map<- ggplot(data=sum_attendance,aes(factor(week), factor(year), fill=sum_attendance)) +
+  geom_tile(color="white") +
+  scale_fill_gradient2(low = "grey", high = "navyblue",mid = "lightblue", midpoint = 2000000, breaks=c(1700000,2000000,2300000), labels=c("Low","Medium" ,"High"))+
+  theme(
+    aspect.ratio = 1/2,
+    legend.position = "bottom",
+    legend.key.width = unit(2, "cm"),
+    legend.justification = "center",
+    plot.title = element_text(face = "bold", size = 18)
+       )+
+  labs(
+    title = "NFL Weekly Attendance",
+    subtitle = "NFL audiences from 2000 to 2019",
+    x="Week",
+    y= "",
+    fill=""
+  )
+heat_map
+```
+
+# Line graph for attendance
+```{r}
+attendance %>%
+  group_by(year) %>%
+  summarise(attendance= sum(weekly_attendance, na.rm = TRUE)) %>%
+  ggplot()+
+  geom_line(aes(year, attendance), size= 2)+
+  scale_x_continuous(breaks = seq(2000, 2020, 2))+
+  scale_y_continuous(labels = scales::comma_format())+
+  theme_minimal()+
+  theme(
+    panel.grid.minor.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid = element_blank(),
+    axis.ticks.y =element_blank(),
+    axis.ticks = element_blank(),
+    axis.line = element_blank(),
+    plot.title = element_text(face = "bold", size = 18),
+
+  )+
+  labs(
+    title = "NFL Audience All the Time",
+    y= "Yearly Attendance",
+    x= "Year"
+  )
+
+```
+
+```{r}
+sb_winners<- standings %>%
+  filter(sb_winner == "Won Superbowl")
+
+df<- attendance %>%
+  left_join(sb_winners, by = c("year", "team_name", "team")) 
+df %>%
+  ggplot()+
+  geom_line(aes(year, total, group=team_name), size=0.1)+
+  geom_line(data = df%>%filter(team_name %in% sb_winners$team_name), aes(year,total, color=team_name), size=0.9)+
+  geom_point(data = df%>%filter(sb_winner=="Won Superbowl"), aes(year,total), alpha=1/17, size=5)
+  
+```
+
+
+```{r}
+
+```
+
