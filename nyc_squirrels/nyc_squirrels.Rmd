@@ -1,0 +1,96 @@
+---
+title: "nyc_squirrels"
+author: "Bahman Ajdari"
+date: "10/29/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R data
+```{r reading data}
+nyc_squirrels <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-10-29/nyc_squirrels.csv")
+```
+
+##Libraries
+
+```{r libraries}
+library(tidyverse)
+library(circlize)
+```
+
+##Data manipulation
+```{r EDA}
+nyc_squirrels %>%
+  count(tail_twitches, sort = TRUE)
+
+nyc_squirrels%>%
+  count(shift, sort = TRUE)
+
+
+```
+
+```{r shift color}
+highlight_count_shift<- nyc_squirrels %>%
+  separate_rows(highlight_fur_color, sep=", ")%>%
+  count(highlight_fur_color, shift, sort = TRUE) %>%
+  drop_na()%>%
+  mutate(highlight_fur_color=fct_reorder(highlight_fur_color, n))
+
+highlight_count_shift%>%
+  ggplot(aes(highlight_fur_color, n, fill=shift))+
+  geom_col(position = "dodge")+
+  coord_flip()+
+  theme_minimal()+
+  theme(legend.position = "top")+
+  labs(
+    x="Highlight Color",
+    y="Number of squirrels seen"
+  )
+```
+
+```{r location chordDiagram}
+location_sml<-nyc_squirrels %>%
+  select(unique_squirrel_id, shift, primary_fur_color, highlight_fur_color, location, lat, long)%>%
+  count(location, shift, sort = TRUE)%>%
+  drop_na()
+circos.clear()
+chordDiagram(location_sml, transparency = 0.5)
+```
+
+```{r Chord diagram for activities}
+behaviour_gatherd<- nyc_squirrels%>%
+  select(running, chasing, climbing, eating, foraging, unique_squirrel_id, shift, other_activities)%>%
+  pivot_longer(cols = c(running, chasing, climbing, eating, foraging), names_to = "category", values_to = "Value")
+count_behavior<-behaviour_gatherd %>%
+  filter(Value==TRUE)%>%
+  count(category, shift)
+circos.clear()
+chordDiagram(count_behavior, transparency = 0.5)
+```
+
+```{r}
+sml_squirrels<-nyc_squirrels %>%
+  select(unique_squirrel_id, shift, primary_fur_color, highlight_fur_color, location, lat, long)
+
+library(leaflet)
+```
+
+```{r}
+map <- nyc_squirrels %>%
+  select( lat, long)%>%
+  leaflet()%>%
+  addTiles()%>%
+addCircleMarkers(~long,
+                 ~lat, 
+                 radius = 1,
+                 opacity = 0.3,
+                 color = "red")
+map
+
+
+```

@@ -1,0 +1,123 @@
+---
+title: "nz_birds"
+author: "Bahman Ajdari"
+date: "11/24/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Rean in data
+```{r}
+nz_bird <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-11-19/nz_bird.csv")
+```
+
+## Libraries
+```{r}
+library(tidyverse)
+```
+
+##EDA
+```{r}
+#top 5 birds by vote counts
+top5_votes <- nz_bird %>%
+  filter(!is.na(vote_rank) & !is.na(bird_breed)) %>%
+  count(bird_breed) %>%
+  arrange(desc(n)) %>%
+  top_n(5)
+#Distribution of 5 famouse birds by their number of votes
+nz_bird %>%
+  drop_na() %>%
+  group_by(vote_rank, bird_breed)%>%
+  summarise(count=n()) %>%
+  arrange(desc(count)) %>%
+  pivot_wider(names_from = vote_rank, values_from = count) %>%
+  filter(bird_breed %in% top5_votes$bird_breed) %>%
+  pivot_longer(-bird_breed, names_to = "vote_rank", values_to = "count") %>%
+  ggplot(aes(bird_breed, count, fill=vote_rank))+
+   geom_col(position = "dodge", color="darkblue")+
+  theme_bw()
+```
+
+## Rules
+Association rules among birds.
+```{r installing and loading rules packages}
+#not run
+#install.packages("arules")
+#install.packages("arulesViz")
+library(arules)
+library(arulesViz)
+data(Groceries)
+class(Groceries)
+inspect(head(Groceries))
+inspect(head(tdata))
+size(Groceries)
+data("Adult")
+inspect(head(Adult))
+```
+
+# Data preparation for rules
+```{r}
+bird_votes <- read_csv("~/Downloads/BOTY-votes-2019.csv") %>%
+  select(-c(country, hour, date)) %>%
+  mutate(vote_1= as.factor(vote_1),
+            vote_2= as.factor(vote_2),
+            vote_3= as.factor(vote_3),
+            vote_4= as.factor(vote_4),
+            vote_5= as.factor(vote_5))
+  
+  glimpse(bird_votes)
+ 
+```
+
+```{r convert to transaction}
+tdata<- as(bird_votes, "transactions")
+size(head(tdata))
+summary(tdata)
+frequentItems <- eclat (tdata, parameter = list(supp = 0.01, maxlen = 15)) # calculates support for frequent items
+inspect(frequentItems)
+itemFrequencyPlot(tdata,topN=10, type="absolute", main="Item Frequency", cex.names=0.8)
+```
+
+```{r association rules}
+rules <- apriori (tdata, parameter = list(supp = 0.001, conf = 0.8)) # Min Support as 0.001, confidence as 0.8.
+rules_conf <- sort (rules, by="confidence", decreasing=TRUE) # 'high-confidence' rules.
+
+inspect(head(rules_conf)) # show the support, lift and confidence for all rules
+
+rules_lift <- sort (rules, by="lift", decreasing=TRUE) # 'high-lift' rules.
+inspect(head(rules_lift)) # show the support, lift and confidence for all rules
+
+plot(rules, method = "paracoord")
+plot(rules, method = "grouped")
+plot(rules, verbose = TRUE)
+plot(rules, method="matrix", engine = "3d")
+plot(rules, method="graph", 
+  layout=igraph::with_graphopt(spring.const=5, mass=20))
+
+plot(rules, method="graph", layout=igraph::centr_eigen(), nodeCol= "blue")
+
+```
+
+# See what are the votes after yellow eyed pinguin
+It is not successfull. probably because of the nature of the dataset. 
+```{r}
+rules <- apriori (data=tdata, parameter=list (supp=0.001,conf = 0.005,minlen=1), appearance=list(default="rhs",lhs="vote_1=Yellow-eyed penguin"), control = list (verbose=F)) # those who voted 'Yellow-eyed penguin	' also voted..
+rules_conf <- sort (rules, by="confidence", decreasing=TRUE) # 'high-confidence' rules.
+inspect(head(rules_conf))
+```
+
+# Association rules for those who voted for the yellow eye pinguine in their first spot
+```{r}
+rules <- apriori (data=tdata, parameter=list (supp=0.001,conf = 0.5,minlen=1),      appearance=list(default="lhs",rhs="vote_1=Yellow-eyed penguin"), control = list (verbose=F))
+rules_conf <- sort (rules, by="confidence", decreasing=TRUE) # 'high-confidence' rules.
+top_rules <- rules_conf[1:6]
+inspect(head(top_rules))
+plot(top_rules, method = "graph", alpha=.8, arrowSize=0.2, cex=0.8)
+inspect(rules_conf)
+```
+

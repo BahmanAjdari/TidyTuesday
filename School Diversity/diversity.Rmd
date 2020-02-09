@@ -1,0 +1,90 @@
+---
+title: "School diversity"
+author: "Bahman Ajdari"
+date: "9/24/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Loading needed libraries
+```{r}
+library(tidyverse)
+library(janitor)
+theme_set(theme_light())
+```
+
+#Bringing data into R
+Data is from The Washington Post courtesy of Kate Rabinowitz, Laura Meckler, and Armand Emamdjomeh.
+
+```{r}
+school_diversity <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-09-24/school_diversity.csv") %>%
+  clean_names()
+
+school_diversity<- school_diversity%>%
+  clean_names()%>%
+  rename(
+    district=lea_name,
+    state=st,
+    district_id=leaid,
+    locale=d_locale_txt
+  )
+```
+#EDA
+```{r}
+school_diversity %>%
+  count(st, sort = TRUE) #Why there are 51 states?!
+
+school_diversity%>%
+  count(st, diverse, sort = TRUE) %>%
+  top_n()
+
+school_diversity%>%
+  count(district_id, sort = TRUE)
+```
+
+How does diversity differ by state and year?
+
+```{r}
+school_diversity%>%
+  group_by(state, school_year) %>%
+  summarise(
+    diversity= mean(1-white)
+  )%>%
+  pivot_wider(names_from = school_year, values_from = diversity)%>%
+  mutate(diff=`1994-1995`-`2016-2017`
+  )%>%
+  arrange(diff)%>%
+  ungroup()
+
+varianced<- school_diversity%>%
+  group_by(state, school_year) %>%
+  summarise(diversity=mean(1-white))%>%
+  mutate(change=last(diversity)-first(diversity))%>%
+  arrange(desc(change))%>%
+  head(12)
+  
+
+school_diversity%>%
+  group_by(state, school_year) %>%
+  summarise(
+    diversity= mean(1-white)
+  )%>%
+  ggplot(aes(school_year, diversity, group=state))+
+  geom_point(size=5, color="grey")+
+  geom_line(aes(group=state), color="grey")+
+  geom_point(data = varianced, mapping = aes(school_year,diversity, color=state),size=5)+
+  geom_line(data = varianced, mapping = aes(school_year,diversity, color=state))+
+  #scale_y_continuous(labels = scales::percent_format()) +
+  labs(title = "Which states have seen the biggest change in their classrooms?",
+       subtitle = "% of non-white students",
+       caption = "",
+       x = "",
+       y = "")
+
+```
+

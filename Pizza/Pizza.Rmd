@@ -1,0 +1,131 @@
+---
+title: "Pizza"
+author: "Bahman Ajdari"
+date: "10/1/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Loading libriaris
+```{r}
+library(tidyverse)
+library(broom)
+
+```
+
+
+## R Data
+
+```{r}
+pizza_jared <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-10-01/pizza_jared.csv")
+pizza_barstool <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-10-01/pizza_barstool.csv")
+pizza_datafiniti <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-10-01/pizza_datafiniti.csv")
+
+processed_jared<- pizza_jared %>%
+  filter(answer!="Fair")%>%
+  drop_na(answer)%>%
+  mutate(opinion=case_when(
+              answer=="Never Again"~ 1,
+              answer=="Poor"~2,
+              answer=="Average"~3,
+              answer=="Good"~ 4,
+              answer=="Excellent"~5
+              )
+        )
+```
+
+##Second attempt for data processing
+```{r}
+answer_orders <- c("Never Again", "Poor", "Average", "Good", "Excellent")
+pizza_jared %>%
+  mutate(answer=fct_relevel(answer, answer_orders))%>%
+  mutate(opinion=as.integer(answer)) %>%
+  group_by(answer, place)%>%
+  summarise(votes=sum(votes))
+```
+
+##EDA
+```{r}
+
+processed_jared %>%
+  count(place, sort = TRUE)
+
+```
+
+
+## Top 5 by place
+```{r}
+by_place_answer_1 <- processed_jared %>%
+  group_by(place, answer)%>%
+  mutate(
+            number_of_votes=sum(votes),
+            average=sum(opinion*percent),
+            votes=votes/number_of_votes
+        )%>%
+  ungroup()
+  
+by_place_answer_1%>%
+  mutate(answer=fct_relevel(answer, answer_orders))%>%
+  top_n(24, total_votes)%>%
+  ggplot(aes(answer, percent))+
+  geom_col()+
+  scale_y_continuous(labels = scales::percent)+
+  facet_wrap(~place)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 1))
+
+# second attempt
+by_place_answer <- pizza_jared %>%
+  mutate(answer = fct_relevel(answer, answer_orders)) %>%
+  group_by(place, answer) %>%
+  summarize(votes = sum(votes)) %>%
+  mutate(total = sum(votes),
+         percent = votes / total,
+         answer_integer = as.integer(answer),
+         average = sum(answer_integer * percent)) %>%
+  ungroup()
+
+by_place_answer %>%
+  filter(as.integer(fct_reorder(place, total, .desc = TRUE)) <= 9) %>%
+  mutate(answer=fct_relevel(answer, order),
+         place = glue::glue("{ place } ({ total })"),
+         place=fct_reorder(place, average))%>%
+  ungroup()%>%
+  mutate(place=fct_reorder(place, average))%>%
+  ggplot(aes(answer, percent))+
+  geom_col()+
+  facet_wrap(~place)+
+  scale_y_continuous(labels=scales::percent)+
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1)
+       )
+    
+```
+
+```{r}
+
+t_test<- function(x, freq){
+  
+        tidy(t.test(rep(x, freq)))
+                          }
+
+by_place_answer%>%
+  filter(total>4)%>%
+  group_by(place,total)%>%
+  summarise(t_test_result=list(t_test(answer_integer, votes)))%>%
+  ungroup() %>%
+  unnest(t_test_result) %>%
+  select(place, total, mean=estimate, low=conf.low, high=conf.high)%>%
+  top_n(20, total)%>%
+mutate(place=fct_reorder(place, mean)) %>%
+  ggplot(aes(mean,place))+
+  geom_point(aes(size=total))+
+  geom_errorbarh(aes(xmin=low, xmax=high))
+
+ggsave(here::here("Pizza","img", "Pizza.png"),last_plot(),width = 16, height = 8 )
+```
+
