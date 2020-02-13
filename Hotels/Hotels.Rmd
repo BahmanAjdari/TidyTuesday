@@ -71,7 +71,7 @@ hotels %>%
   count(country, sort = TRUE)
 ```
 
-# Cancellation behaviour among top travelers
+# Cancellation behaviour among top travellers
 ```{r}
 hotel_cancelation<- hotels_iso3c%>%
   mutate(is_canceled= factor(is_canceled, levels = c(0,1), labels = c("Not Canceled", "Canceled"))) %>%
@@ -88,7 +88,7 @@ hotel_cancelation<- hotels_iso3c%>%
   theme+
   labs(
     title = "Who Cancels Hotel Reservation?",
-    subtitle = "Percentages of cancellation vs. successful check-ins among top travelers",
+    subtitle = "Percentages of cancellation vs. successful check-ins among top travellers",
     fill= "",
     x="Country of Origin",
     y=""
@@ -155,7 +155,7 @@ Not in final plot
   coord_flip()+
     labs(
       title = "Travel With Children?",
-      subtitle = "Proportion of top travelers who travel with/without children",
+      subtitle = "Proportion of top travellers who travel with/without children",
       x="Country of Origin",
       y="",
       fill=""
@@ -186,7 +186,7 @@ book_hotels<- hotels_iso3c %>%
   theme_light()+
   theme+
   labs(
-    title = "How Soon Travelers Book Their Hotels?",
+    title = "How Soon travellers Book Their Hotels?",
     subtitle = "Average number of days that elapsed between the entering date of the booking into \n the PMS and the arrival date for countries with at least 1000 bookings",
     x="",
     y="Days"
