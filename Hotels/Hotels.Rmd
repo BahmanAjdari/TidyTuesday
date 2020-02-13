@@ -35,7 +35,6 @@ library(tidyverse)
 library(lubridate)
 library(countrycode)
 library(cowplot)
-library(feasts)
 ```
 
 #Working Directory
@@ -46,6 +45,7 @@ hotels <- readr::read_csv("hotels.csv")
 ```
 
 #Pre-Processing
+Country names iso3c
 ```{r}
 hotels_iso3c<- hotels %>%
   filter(!country %in% c("TMP", "NULL")) %>%
@@ -54,7 +54,7 @@ hotels_iso3c<- hotels %>%
 ```
 
 
-# Some explorartions 
+# EDA 
 ```{r}
 hotels %>%
   count(hotel) %>%
@@ -71,7 +71,7 @@ hotels %>%
   count(country, sort = TRUE)
 ```
 
-# Cancelation behaviour among top travelers
+# Cancellation behaviour among top travelers
 ```{r}
 hotel_cancelation<- hotels_iso3c%>%
   mutate(is_canceled= factor(is_canceled, levels = c(0,1), labels = c("Not Canceled", "Canceled"))) %>%
@@ -88,14 +88,14 @@ hotel_cancelation<- hotels_iso3c%>%
   theme+
   labs(
     title = "Who Cancels Hotel Reservation?",
-    subtitle = "Percentages of cancelation vs. successful check-ins among top travelers",
+    subtitle = "Percentages of cancellation vs. successful check-ins among top travelers",
     fill= "",
     x="Country of Origin",
     y=""
   )
 hotel_cancelation
 # second attempt
-# countries with at least 1000 observation and have high rate of total cancelation
+# countries with at least 1000 observation and have high rate of total cancellation
 # both hotel types
  hotel_type<- hotels_iso3c %>%
     group_by(country_name, hotel) %>%
@@ -117,15 +117,17 @@ hotel_cancelation
     theme+
     coord_flip()+
     labs(
-      title= "Countries with most total proportional cancelation",
-      subtitle = "Proportion of Cancelation for City Hotels and Resort Hotels among\n countries with at least 500 bookings",
+      title= "Countries with High Proportional Cancellation",
+      subtitle = "Proportion of cancellation for City Hotels and Resort Hotels among\n countries with at least 500 bookings",
       fill="",
       x="Country of Origin",
       y=""
     )
 hotel_type
 ```
+
 # Who is traveling with childeren
+Not in final plot
 ```{r}
   hotels_iso3c %>%
      filter(is_canceled == 0) %>%
@@ -161,7 +163,6 @@ hotel_type
 ```
 
 # Lead Time
-
 ```{r}
 book_hotels<- hotels_iso3c %>%
   select(country_name, lead_time, hotel) %>%
@@ -185,8 +186,8 @@ book_hotels<- hotels_iso3c %>%
   theme_light()+
   theme+
   labs(
-    title = "How soon travelers book their hotels?",
-    subtitle = "Average Number of days that elapsed between the entering date of the booking into \n the PMS and the arrival date for countries with at least 1000 bookings",
+    title = "How Soon Travelers Book Their Hotels?",
+    subtitle = "Average number of days that elapsed between the entering date of the booking into \n the PMS and the arrival date for countries with at least 1000 bookings",
     x="",
     y="Days"
   )
@@ -244,29 +245,7 @@ booking_trend <- hotels_new %>%
 booking_trend
 ```
 
+#Final_plot
 ```{r}
-plot_grid(plot_grid(hotel_cancelation, hotel_type, ncol = 2, nrow = 1), booking_trend, plot_grid(box_plot, book_hotels), nrow = 3,rel_heights = c(1.25,1,1.25))
-  
+plot_grid(plot_grid(hotel_cancelation, hotel_type, ncol = 2, nrow = 1), booking_trend, plot_grid(box_plot, book_hotels), nrow = 3,rel_heights = c(1,1,1))
 ```
-
-```{r}
-text_intro <- ggplot(data.frame(x = 1:2, y = 1:2)) +
-  labs(x = NULL, y = NULL,
-       subtitle = "The cancellation rate is high, and Portugal, the country where the hotel is located, has the highest cancellation rate,<br>
-       with <span style='color:#00d400'><b>42.9% of cancellation in Resort Hotel</b></span>,<span style='color:darkorange'><b>57.3% of cancellation in both hotels</b></span> (left).<br>
-       Many booking and cancellation seem to be made in batch, with the same booking date and all cancelled the same day. <br>
-       The graph shows the delay between booking and cancellation.") +
-  theme(panel.background = element_rect(fill = "#ffffff"),
-        plot.background = element_rect(fill = "#ffffff", color = NA),
-        axis.text = element_blank(),
-        axis.line.x = element_blank(),
-        plot.title = element_text(color = "black", hjust = 0),
-        plot.subtitle = element_textbox(color = "black", hjust = 0, size = 12, lineheight = 1, family = "Lato"),
-        plot.margin = margin(30, 100, 0, 100),
-        strip.background = element_rect(fill = NA, color = NA)
-  )
-text_intro
-patchwork <- (hotel_cancelation+hotel_type)/booking_trend / (box_plot+book_hotels)
-patchwork
-```
-
