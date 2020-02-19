@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## R Markdown
 
+Reading Data
 ```{r}
 food_consumption <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-02-18/food_consumption.csv')
 ```
@@ -129,16 +130,5 @@ border_food %>%
     y="Total Consumption (kg/person/year)",
    caption = "Data:nu3.de | Visualization:@BahmanAjdari "
   )
-```
-
-```{r}
-border_food %>%
-  group_by(geo) %>%
-  summarise(
-    n=n(),
-    total_co2= sum(co2_emmission),
-    pct= total_co2/ min(land_area)
-  ) %>%
-  arrange(desc(pct))
 ```
 
