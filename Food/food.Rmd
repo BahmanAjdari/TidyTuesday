@@ -1,0 +1,144 @@
+---
+title: "Food Consumption"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+food_consumption <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-02-18/food_consumption.csv')
+```
+
+# Loading Libraries
+```{r}
+library(tidyverse)
+library(countrycode)
+theme_set(theme_light())
+```
+
+# EDA
+```{r}
+food_consumption %>%
+  count(food_category, sort = TRUE)
+food_consumption %>%
+  count(food_category, sort = TRUE)
+```
+
+#Food Category Vs. Consumption
+```{r}
+food_consumption %>%
+  ggplot(aes(x = fct_reorder(food_category, consumption), y = consumption, 
+             color = country)) +
+  geom_jitter() +
+  theme(legend.position = "none") +
+  coord_flip()
+```
+
+# Adding Continent of countries
+```{r}
+food_consumption$continent <- countrycode(
+  sourcevar = food_consumption[, "country"][[1]],
+                                          origin = "country.name",
+                                          destination = "continent")
+food_consumption$geo <- countrycode(sourcevar = food_consumption[, "country"][[1]],
+                                    origin = "country.name",
+                                    destination = "genc3c") %>% 
+  str_to_lower()
+```
+
+# How countries emmitt CO2
+```{r}
+food_consumption %>%
+  group_by(continent, food_category) %>%
+  summarise(
+    total=sum(co2_emmission)
+  ) %>% 
+  ggplot()+
+  geom_col(aes(continent, total, fill=food_category))+
+  ylab("Total CO2 Emission")+
+  labs(
+    title = "Total CO2 Emmissions by Continents"
+  )
+
+```
+
+# Is there any relationship between the length of coastline and Fish consumption?
+## First scraping length of borders from Wikipedia
+```{r}
+library(rvest)
+url<- "https://en.wikipedia.org/wiki/List_of_countries_by_length_of_coastline"
+url_html<- read_html(url)
+whole_table <- url_html %>% 
+ html_nodes('.wikitable') %>%
+ html_table(fill = TRUE) %>%
+ .[[1]]
+# Removing 
+names(whole_table)<- NULL
+name<- c("country", "fb_rank", "fb_km", "wr_rank", "wr_km", "land_area", "twf", "wri")
+colnames(whole_table)<- name
+table_clean<- whole_table %>%
+  mutate(row=row_number()) %>%
+  filter(!row %in% c(1, 2, 3)) %>%
+  select(-row) %>%
+  as_tibble()
+#Final table with clean and parsed numbers
+maritime_borders<- table_clean %>%
+  mutate_at(vars(-country), parse_number)
+```
+
+# Joining tables
+```{r}
+maritime_borders$geo <- countrycode(sourcevar = maritime_borders[, "country"][[1]],
+                                    origin = "country.name",
+                                    destination = "genc3c") %>% 
+  str_to_lower()
+
+border_food <- food_consumption %>%
+  select(-country) %>%
+  left_join(maritime_borders, by = "geo") %>%
+  select(country, continent, geo, everything())
+
+```
+
+#Relationship between length of maritime border and fish consumption!
+```{r}
+border_food %>%
+  filter(food_category=="Fish",
+         fb_km> 100) %>%
+  ggplot(aes(fb_km, consumption))+
+  geom_point(aes(size=consumption, color=continent), alpha=0.6, show.legend = FALSE)+
+  geom_text(mapping = aes(label=country, color=continent), hjust=1, vjust=1,
+            check_overlap = TRUE, show.legend = FALSE, size=4)+
+  geom_smooth(method = "lm", se = FALSE,size=0.5)+
+  scale_x_log10(labels=scales::comma_format())+
+  theme(
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(size = 28, face = "bold", family = "Roboto", hjust = .5),
+    plot.subtitle = element_text(size = 14, hjust = .5)
+  )+
+  labs(
+    title = "Relationship Between the Length of \nCoastline and Fish Consumption",
+    subtitle = "It seems there is no relationship between the lenght of coastline and Fish consumption.",
+    x= "Coastline(km)",
+    y="Total Consumption (kg/person/year)",
+   caption = "Data:nu3.de | Visualization:@BahmanAjdari "
+  )
+```
+
+```{r}
+border_food %>%
+  group_by(geo) %>%
+  summarise(
+    n=n(),
+    total_co2= sum(co2_emmission),
+    pct= total_co2/ min(land_area)
+  ) %>%
+  arrange(desc(pct))
+```
+
