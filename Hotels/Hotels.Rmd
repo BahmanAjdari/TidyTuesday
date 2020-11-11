@@ -247,5 +247,6 @@ booking_trend
 
 #Final_plot
 ```{r}
-plot_grid(plot_grid(hotel_cancelation, hotel_type, ncol = 2, nrow = 1), booking_trend, plot_grid(box_plot, book_hotels), nrow = 3,rel_heights = c(1,1,1))
+panel<- plot_grid(plot_grid(hotel_cancelation, hotel_type, ncol = 2, nrow = 1), booking_trend, plot_grid(box_plot, book_hotels), nrow = 3,rel_heights = c(1,1,1))
+ggsave("panel.png", panel, dpi = "retina",width = 35, height = 20, units = "cm")
 ```

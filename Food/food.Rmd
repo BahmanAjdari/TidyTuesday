@@ -132,3 +132,27 @@ border_food %>%
   )
 ```
 
+```{r}
+border_food %>%
+  filter(food_category=="Fish",
+         wri> 0.1) %>%
+  ggplot(aes(wri, consumption))+
+  geom_point(aes(size=consumption, color=continent), alpha=0.6, show.legend = FALSE)+
+  geom_text(mapping = aes(label=country, color=continent), hjust=1, vjust=1,
+           check_overlap = TRUE, show.legend = FALSE, size=4)+
+  geom_smooth(method = "lm", se = FALSE,size=0.5)+
+  scale_x_log10(labels=scales::comma_format())+
+  theme(
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(size = 28, face = "bold", family = "Roboto", hjust = .5),
+    plot.subtitle = element_text(size = 14, hjust = .5)
+  )+
+  labs(
+    title = "Relationship Between the Ratio of Coastline to \nLand Area (m/km^2)and Fish Consumption",
+    #subtitle = "It seems there is no relationship between the ratio of coastline to Land Area and Fish consumption.",
+    x= "Coastline(m) to Land Area(km^2)",
+    y="Total Consumption (kg/person/year)",
+   caption = "Data:nu3.de | Visualization:@BahmanAjdari "
+  )
+```
+
