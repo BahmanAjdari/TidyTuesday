@@ -1,0 +1,140 @@
+---
+title: "Shelters in Toronto"
+date: 2020-12-01
+output: html_output
+editor_options: 
+  chunk_output_type: console
+---
+
+# TidyTuesday
+
+Join the R4DS Online Learning Community in the weekly #TidyTuesday event!
+Every week we post a raw dataset, a chart or article related to that dataset, and ask you to explore the data.
+While the dataset will be “tamed”, it will not always be tidy! As such you might need to apply various R for Data Science techniques to wrangle the data into a true tidy format.
+The goal of TidyTuesday is to apply your R skills, get feedback, explore other’s work, and connect with the greater #RStats community!
+As such we encourage everyone of all skills to participate!
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(tidytuesdayR)
+library(lubridate)
+library(scales)
+```
+
+# Load the weekly Data
+
+Download the weekly data and make available in the `tt` object.
+
+```{r Load}
+tt <- tt_load("2020-12-01")
+shelter <- tt$shelters
+```
+
+
+# Weather data
+Importing climate daily stats from "https://toronto.weatherstats.ca/download.html"
+
+```{r}
+library(readr)
+weather <- read_csv("~/Downloads/weatherstats_toronto_daily (1).csv")%>%
+  select(date, max_temperature, min_temperature, avg_temperature, precipitation)
+
+```
+
+# Number of shelters per organization
+```{r}
+shelter %>%
+  count(organization_name, sort = TRUE) %>%
+  mutate(organization_name=fct_reorder(organization_name, n)) %>%
+  head(16) %>%
+  ggplot(aes(organization_name, n))+
+  geom_col()+
+  coord_flip()
+```
+
+# Joining data frames
+```{r}
+# Making shelter df to smaller one
+shelter_small <- shelter %>%
+  filter(!is.na(occupancy)) %>%
+  filter(!is.na(capacity)) %>%
+  filter(capacity!=0) %>%
+  mutate(rate= occupancy/capacity) %>%
+  mutate(date= ymd(occupancy_date)) %>%
+  select(id,
+         date,
+         occupancy,
+         capacity,
+         rate)
+  
+joined_shelter<- shelter_small %>%
+  left_join(weather, by= "date") %>%
+  mutate(percipitation_deg= case_when(
+    precipitation== 0 ~ "None",
+    between(precipitation, 0.01,10) ~ "Low",
+    between(precipitation, 10.01,20) ~ "Medium",
+    between(precipitation, 20.01, 40) ~ "High",
+    TRUE ~ "Very High"
+  ))
+
+```
+
+# Daily occupancy rate and tempreture
+I don't see any relationship between temperature and occupancy rate 
+
+```{r}
+joined_shelter %>%
+  group_by(day=day(date), month=month(date), year=year(date), percipitation_deg) %>%
+  summarise(
+    avg_rate=mean(rate, na.rm = TRUE),
+    avg_temp= mean(avg_temperature, na.rm = TRUE),
+    avg_percipitation= mean(precipitation, na.rm = TRUE)
+  ) %>% 
+  ggplot(aes(avg_temp, avg_rate))+
+  geom_point(alpha=0.7)+
+  scale_y_continuous(labels = percent_format())+
+  geom_smooth(se=FALSE)+
+  facet_wrap(~year)+
+  labs(
+    title = "Daily Occupancy Rate in Toronto's Shelter System",
+    subtitle = "Based on Daily Average Temperature(Celsius)",
+    y= "Average Occupancy Rate",
+    x= "Average Temperature (Celsius)"
+  )
+```
+
+# monthy occupancy rate
+
+```{r}
+joined_weather %>%
+  mutate(month=month(date, abbr = TRUE),
+         year= year(date)) %>%
+  group_by(year, month) %>%
+  summarise(
+    n=n(),
+    all_occup= sum(occupancy),
+    all_capacity= sum(capacity, na.rm = TRUE),
+    avg_percipitation= mean(precipitation, na.rm = TRUE),
+    avg_temp= mean(avg_temperature)
+  ) %>% 
+  mutate (rate= all_occup/all_capacity) %>%
+  ggplot(aes(as.factor(month), rate, fill=factor(year)))+
+  geom_col(position = "fill")
+  scale_x_discrete(label=month.name)
+
+```
+
+# Save Image
+Save your image for sharing. Be sure to use the `#TidyTuesday` hashtag in your post on twitter! 
+
+```{r}
+
+# This will save your most recent plot
+ggsave(
+  filename = "daily.png",
+  device = "png")
+
+```
